@@ -94,15 +94,20 @@ bool FileHandler::mapFileInfosToStruct()
     return true;
 }
 
-void FileHandler::decompressChunks()
+bool FileHandler::decompressChunks()
 {
-
+    if(header.isCompressed == 0)
+    {
+        std::cerr << "Error file is already decompressed:" << std::endl;
+        return false;
+    }
     decompressedBuffers.resize(compressedBuffers.size());
     for (size_t i = 0; i < compressedBuffers.size(); ++i)
     {
         decompressedBuffers[i].resize(fileInfos[i].sizeDecompressed);
         decompress((u32)compressedBuffers[i].data(), fileInfos[i].sizeCompressed, (u8*)decompressedBuffers[i].data());
     }
+    return true;
 }
 
 bool FileHandler::writeDecompressedFile()
@@ -128,11 +133,11 @@ bool FileHandler::writeDecompressedFile()
 
     std::memcpy(headerBuffer.data() + sizeof(CAFF_FILE_HEADER), fileInfos.data(), sizeof(CAFF_INFO_HEADER) * fileInfos.size());
 
-    // if RETAIL modify the header checksum - not needed on the DEMO
+    // if RETAIL modify the header checksum - not needed on the DEMO 
 #ifdef RETAIL
     u32 checksum = calculateChecksum(headerBuffer);
     std::memcpy(headerBuffer.data() + 0x14, &checksum, sizeof(checksum));
-    printf("modified header checksum = %X\n", checksum);
+    std::cout << "modified header checksum = " << std::hex << checksum << std::endl;
 #endif
 
     // Write header

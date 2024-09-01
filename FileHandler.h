@@ -32,7 +32,7 @@ public:
     bool verifyVersion();
     bool mapHeaderToStruct();
     bool mapFileInfosToStruct();
-    void decompressChunks();
+    bool decompressChunks();
     bool writeDecompressedFile();
     void printHeaderInfo();
     void printFileInfos();

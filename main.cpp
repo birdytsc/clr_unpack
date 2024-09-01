@@ -9,8 +9,8 @@ int main(int argc, char* argv[])
 
     if (handler.loadFile())
     {
-        handler.decompressChunks();
-        handler.writeDecompressedFile();
+        if(handler.decompressChunks())
+            handler.writeDecompressedFile();
         handler.printHeaderInfo();
         handler.printFileInfos();
     }
