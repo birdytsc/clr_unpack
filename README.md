@@ -12,7 +12,7 @@ Sample usage:
 
 > clr_unpack default.rbm
 
-> clr_unpack_demp default.rbm
+> clr_unpack_demo default.rbm
 
 What the program does:
 
