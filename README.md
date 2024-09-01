@@ -12,6 +12,8 @@ Sample usage:
 
     clr_unpack default.rbm
 
+You can also just drag and drop the file on the executable and it should unpack it into the same directory as the source file.
+
 What the program does:
 
 > Reads in the .RBM file
