@@ -12,8 +12,6 @@ Sample usage:
 
     clr_unpack default.rbm
 
-    clr_unpack_demo default.rbm
-
 What the program does:
 
 > Reads in the .RBM file
