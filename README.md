@@ -10,8 +10,7 @@ I have no idea what algorithm it is however.
 
 Sample usage:
 
-> clr_unpack default.rbm
->
+    clr_unpack default.rbm
     clr_unpack_demo default.rbm
 
 What the program does:
