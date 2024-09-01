@@ -17,9 +17,13 @@ Sample usage:
 What the program does:
 
 > Reads in the .RBM file
+> 
 > Verifies its Magic and Version
+> 
 > Decompresses the data chunks inside (usually a .data and .gpu chunk)
+> 
 > Modifies the header fields that the game uses to check if the file is compressed
+> 
 > Spits out the file with a .unpacked extension
 
 The unpacked files can be used in-place of the original and even modified as long as the size and offsets remain unchanged.
