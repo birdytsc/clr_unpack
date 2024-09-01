@@ -27,6 +27,7 @@ What the program does:
 > Spits out the file with a .unpacked extension
 
 The unpacked files can be used in-place of the original and even modified as long as the size and offsets remain unchanged.
+
 You will need to completely Re-map the file if you want to change it beyond this, the CAFF files include a Table of Contents
 that include the file names and the data offsets for each file in the archive.
 
