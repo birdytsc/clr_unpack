@@ -12,6 +12,14 @@ Sample usage:
 
     clr_unpack default.rbm
 
+Generate listfile:
+
+    clr_unpack default.rbm -l
+
+dump files:
+
+    clr_unpack default.rbm -d index
+
 You can also just drag and drop the file on the executable and it should unpack it into the same directory as the source file.
 
 What the program does:
