@@ -5,6 +5,7 @@
 #include <vector>
 #include <cstring>
 #include <iomanip>
+#include <sstream>
 
 class FileHandler
 {
@@ -18,12 +19,14 @@ private:
     const char* expectedVersion = "24.09.03.0026";  // expected version string
 #endif
     std::vector<char> headerBuffer;
-    std::vector<std::vector<char>> compressedBuffers;
-    std::vector<std::vector<char>> decompressedBuffers;
+    std::vector<std::vector<char>> dataBuffers;
     std::string input_file;
     std::string output_file;
     CAFF_FILE_HEADER header;
     std::vector<CAFF_INFO_HEADER> fileInfos;
+    unsigned int fileNameBufferSize;
+    std::vector<std::string> fileNameStrings;
+    std::vector<FILE_INDEX_ENTRY> fileIndexTable;
 
 public:
     FileHandler(const std::string& inputFile);
@@ -32,8 +35,13 @@ public:
     bool verifyVersion();
     bool mapHeaderToStruct();
     bool mapFileInfosToStruct();
+    bool mapFileNameStrings();
+    bool mapFileIndexTable();
     bool decompressChunks();
     bool writeDecompressedFile();
+    bool writeListFile();
+    bool writeFileFromIndex(u32 Index);
     void printHeaderInfo();
     void printFileInfos();
+    void printFileNames();
 };
