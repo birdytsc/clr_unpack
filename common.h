@@ -1,5 +1,8 @@
 #pragma once
 
+#include <vector>
+#include <string>
+
 #define Naked __declspec( naked )
 typedef unsigned int u32;
 typedef unsigned short u16;
@@ -13,6 +16,38 @@ typedef unsigned char u8;
 #pragma pack(push)
 #pragma pack(1)
 
+const std::vector<std::string> assetTypes =
+{
+    "apple",
+    "action",
+    "animation",
+    "model",
+    "cutscene",
+    "cutscenetest",
+    "font",
+    "bfdlevel",
+    "levelLights",
+    "levelZones",
+    "mpegspeech",
+    "conkernetwork",
+    "particle",
+    "pixelShader",
+    "conkerRes",
+    "conkerspeech",
+    "conkersurface",
+    "task",
+    "texPack",
+    "text",
+    "texture",
+    "userinterface",
+    "vertexShader",
+    "xmldata",
+    "package",
+    "scenegraph",
+    "hits",
+    "levelHits"
+};
+
 struct FILE_INDEX_ENTRY
 {
     u32 Index;          // index into the table
@@ -22,7 +57,39 @@ struct FILE_INDEX_ENTRY
     u8 headerSize;
 };
 
+struct RELOCATION_ENTRY
+{
+    u32 sourceIndex;
+    u32 targetIndex;
+    u32 relocationCount;
+};
+
 #pragma pack(pop)
+
+
+struct HEADER_TEMPLATE
+{
+    char name[16];  // < - header start
+    u32 unknown_10;
+    u32 unknown_14;
+    u32 unknown_18;
+    u32 unknown_1C; // < - header end
+};
+
+struct PACKAGE_HEADER
+{
+    char name[16];  // < - header start
+    u32 unknown_10;
+    u32 unknown_14;
+    u32 unknown_18;
+    u32 unknown_1C; // < - header end
+};
+
+struct PACKAGE_ENTRY
+{
+    u32 fileNameOffset;
+    u32 dataOffset;
+};
 
 #ifdef RETAIL
 struct CAFF_FILE_HEADER // RETAIL
@@ -32,12 +99,12 @@ struct CAFF_FILE_HEADER // RETAIL
     u32 hash;
     u32 numFiles;
     u32 numFilesWithGpu;
-    u32 unknown_20;
-    u32 unknown_24;
-    u32 unknown_28;
-    u32 unknown_2C;
+    u32 unk_table1;
+    u32 unk_table2;
+    u32 numRelocs;
+    u32 numRelocOffsets;
     u32 unknown_30;
-    u32 dataIndexTableOffset;
+    u32 dataTOCOffset;
     u32 dataOffset;
     u8 unknown_3C; // some kind of endian flag?
     u8 numSections; // count of how many sections (.data .gpu etc.)
@@ -66,11 +133,11 @@ struct CAFF_FILE_HEADER // DEMO
     char version[16];
     u32 numFiles;
     u32 numFilesWithGpu;
-    u32 unknown_1C;
-    u32 unknown_20;
-    u32 unknown_24;
-    u32 unknown_28;
-    u32 dataIndexTableOffset;
+    u32 unk_table1;
+    u32 unk_table2;
+    u32 numRelocs;
+    u32 numRelocOffsets;
+    u32 dataTOCOffset;
     u32 dataOffset;
     u8 unknown_34; // some kind of endian flag?
     u8 numSections; // count of how many sections (.data .gpu etc.)

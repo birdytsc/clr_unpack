@@ -95,65 +95,144 @@ bool FileHandler::mapFileInfosToStruct()
     return true;
 }
 
-bool FileHandler::mapFileNameStrings()
+bool FileHandler::mapInternalPointers()
 {
     if (header.numSections == 0)
     {
-        std::cerr << "Error reading filename strings: invalid section count" << std::endl;
+        std::cerr << "Error mapping internal pointers" << std::endl;
         return false;
     }
 
-    // Read bufferSize
-    std::memcpy(&fileNameBufferSize, dataBuffers[0].data() + header.dataIndexTableOffset, sizeof(unsigned int));
-    if (fileNameBufferSize == 0)
+    u8* data = (u8*)dataBuffers[0].data();
+    file_name_buffer_size_ptr = data + header.dataTOCOffset;
+    file_name_buffer_offsets_ptr = data + header.dataTOCOffset + 0x4;
+    u32* fileNameBufferSize = (u32*)file_name_buffer_size_ptr;
+    if (*fileNameBufferSize != 0)
     {
-        std::cerr << "filename string table was empty" << std::endl;  // retail seems to strip the symbols so add empty ones
-        fileNameStrings.resize(header.numFiles);
-        return false;
-    }
-
-    // Calculate the start of the string buffer
-    unsigned int stringBufferStart = header.dataIndexTableOffset + header.numFiles * sizeof(unsigned int) + 0x4;
-
-    // Vector to store the file offsets
-    std::vector<unsigned int> fileOffsets(header.numFiles);
-    std::memcpy(fileOffsets.data(), dataBuffers[0].data() + header.dataIndexTableOffset + sizeof(unsigned int), header.numFiles * sizeof(unsigned int));
-
-    // Parse strings
-    for (unsigned int i = 0; i < header.numFiles; ++i) {
-        unsigned int stringOffset = stringBufferStart + fileOffsets[i];
-
-        // Ensure we don't read past the buffer
-        if (stringOffset >= dataBuffers[0].size()) {
-            std::cerr << "Error: String offset out of bounds for index " << i << std::endl;
-            fileNameStrings.push_back(""); // Add an empty string for invalid offsets
-            continue;
-        }
-
-        // Find the null terminator
-        const char* stringStart = reinterpret_cast<const char*>(dataBuffers[0].data() + stringOffset);
-        size_t stringLength = strnlen(stringStart, fileNameBufferSize - fileOffsets[i]);
-
-        // Add the string to our vector
-        fileNameStrings.emplace_back(stringStart, stringLength);
-    }
-}
-
-bool FileHandler::mapFileIndexTable()
-{
-    unsigned int fileIndexTableStart;
-    if (fileNameBufferSize == 0)
-    {
-        fileIndexTableStart = header.dataIndexTableOffset + 0x4;
+        file_name_buffer_ptr = file_name_buffer_offsets_ptr + (0x4 * header.numFiles);
     }
     else
     {
-        fileIndexTableStart = header.dataIndexTableOffset + 0x4 + (header.numFiles * 0x4) + fileNameBufferSize;
+        file_name_buffer_ptr = file_name_buffer_offsets_ptr;
+    }
+    file_index_table_ptr = file_name_buffer_ptr + *fileNameBufferSize;
+    unused_table_1_ptr = file_index_table_ptr + (sizeof(FILE_INDEX_ENTRY) * header.numFilesWithGpu);    // Another reloc table? have not seen it used yet
+    unused_table_2_ptr = unused_table_1_ptr + (12 * header.unk_table1);                                 // <-/
+    reloc_table_ptr = unused_table_2_ptr + (4 * header.unk_table2);                                     // Relocation Table
+    reloc_offsets_table_ptr = reloc_table_ptr + (12 * header.numRelocs);                                // <-/
+    return true;
+ }
+
+bool FileHandler::mapFileNameStrings()
+{
+    u32* bufferSize = (u32*)file_name_buffer_size_ptr;
+    if (*bufferSize == 0)
+    {
+        std::cerr << "could not read filename strings, no strings found." << std::endl;
+        return false;
     }
 
-    fileIndexTable.resize(header.numFilesWithGpu);
-    std::memcpy(fileIndexTable.data(), dataBuffers[0].data() + fileIndexTableStart, sizeof(FILE_INDEX_ENTRY) * header.numFilesWithGpu);
+    for (size_t i = 0; i < header.numFiles; i++)
+    {
+        u32* currentStringOffset = (u32*)file_name_buffer_offsets_ptr + i;
+        std::string fileName = (char*)file_name_buffer_ptr + *currentStringOffset;
+        listFile[i+1].cFileName = fileName;
+    }
+    return true;
+}
 
+bool FileHandler::mapZPackageFile()
+{
+    if (header.numRelocs == 0)
+    {
+        std::cerr << "Error mapping zpackage invalid reloc count" << std::endl;
+        return false;
+    }
+
+    u8* data = (u8*)dataBuffers[0].data();
+    FILE_INDEX_ENTRY* file_index_table = (FILE_INDEX_ENTRY*)file_index_table_ptr;
+    u32* reloc_offset = (u32*)reloc_offsets_table_ptr;
+
+    for (size_t i = 0; i < header.numRelocs; i++)
+    {
+        RELOCATION_ENTRY* currentReloc = (RELOCATION_ENTRY*)reloc_table_ptr + i;
+
+        u32* source_offset = (u32*)file_index_table[currentReloc->sourceIndex - 1].fileOffset;
+        u32* target_offset = (u32*)file_index_table[currentReloc->targetIndex - 1].fileOffset;
+
+        u32* source_size = (u32*)file_index_table[currentReloc->sourceIndex - 1].fileSize;
+        u32* target_size = (u32*)file_index_table[currentReloc->targetIndex - 1].fileSize;
+
+        for (size_t j = 0; j < currentReloc->relocationCount; j++, reloc_offset++)
+        {
+            if (*reloc_offset < (u32)source_size)
+            {
+                u32* address_to_update = (u32*)(data + (u32)source_offset + *reloc_offset);
+                *address_to_update += (u32)target_offset;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool FileHandler::mapZPackageFilenames()
+{
+    u8* data = (u8*)dataBuffers[0].data();
+    PACKAGE_HEADER* pheader = (PACKAGE_HEADER*)data;
+    u8* packageCountPtr = data + sizeof(PACKAGE_HEADER);
+    u32* packageCount = (u32*)packageCountPtr;
+    u8* packageTablePtr = packageCountPtr + 0x4;
+    PACKAGE_ENTRY* packageTable = (PACKAGE_ENTRY*)packageTablePtr;
+
+    FILE_INDEX_ENTRY* file_index_table = (FILE_INDEX_ENTRY*)file_index_table_ptr;
+
+    for (size_t i = 0; i < *packageCount; i++)
+    {
+        PACKAGE_ENTRY* currentPackageEntry = (PACKAGE_ENTRY*)packageTablePtr + i;
+        std::string fileName = (char*)data + currentPackageEntry->fileNameOffset;
+        for (size_t j = 0; j < header.numFilesWithGpu; j++)
+        {
+            if (currentPackageEntry->dataOffset >= file_index_table[j].fileOffset && currentPackageEntry->dataOffset <= (file_index_table[j].fileOffset + file_index_table[j].fileSize) && file_index_table[j].filePart == 1)
+            {
+                listFile[file_index_table[j].Index].pFileName = fileName;
+            }
+        }
+    }
+
+    return true;
+}
+
+bool FileHandler::mapFileAssets()
+{
+    FILE_INDEX_ENTRY* file_index_table = (FILE_INDEX_ENTRY*)file_index_table_ptr;
+    for (size_t i = 0; i < header.numFilesWithGpu; i++)
+    {
+        if (file_index_table[i].filePart == 1)
+        {
+            // .data
+            u8* assetTypePtr = (u8*)dataBuffers[0].data() + file_index_table[i].fileOffset;
+            std::string assetType = (char*)assetTypePtr;
+            auto it = std::find(assetTypes.begin(), assetTypes.end(), assetType);
+            if (it != assetTypes.end())
+            {
+                listFile[file_index_table[i].Index].assetType = assetType;
+            }
+            else
+            {
+                listFile[file_index_table[i].Index].assetType = "unknown";
+            }
+            
+            listFile[file_index_table[i].Index].dataOffset = file_index_table[i].fileOffset;
+            listFile[file_index_table[i].Index].dataSize = file_index_table[i].fileSize;
+        }
+        else
+        {
+            // .gpu
+            listFile[file_index_table[i].Index].gpuOffset = file_index_table[i].fileOffset;
+            listFile[file_index_table[i].Index].gpuSize = file_index_table[i].fileSize;
+        }
+    }
     return true;
 }
 
@@ -220,60 +299,33 @@ bool FileHandler::writeDecompressedFile()
     return true;
 }
 
-bool FileHandler::writeListFile()
-{
-    std::string outFilename = input_file + ".listfile.txt";
-    std::ofstream outFile(outFilename);
-    if (!outFile)
-    {
-        std::cerr << "Error creating listfile: " << outFilename << std::endl;
-        return false;
-    }
-
-    outFile << "Files found: " << header.numFiles << std::endl;
-    outFile << std::left << std::setw(8) << "Index" << std::setw(16) << "Type" << "Filename" << std::endl << std::endl;
-    for (size_t i = 0; i < header.numFiles; i++)
-    {
-        std::string assetType;
-        for (size_t j = 0; j < header.numFilesWithGpu; ++j)
-        {
-            if (fileIndexTable[j].Index == (i + 1)) // Add 1 to match FILE_INDEX_ENTRY indexing
-            {
-                if (fileIndexTable[j].filePart == 1)
-                {
-                    assetType = dataBuffers[0].data() + fileIndexTable[j].fileOffset;
-                }
-            }
-        }
-        if (fileNameStrings[i].empty())
-            fileNameStrings[i] = "unknown";
-        outFile << std::left << std::setw(8) << i+1 << std::setw(16) << assetType << fileNameStrings[i] << std::endl;
-    }
-
-    outFile.close();
-    return true;
-}
-
 bool FileHandler::writeFileFromIndex(u32 Index)
 {
+    if (Index > header.numFiles)
+    {
+        std::cerr << "error writing file, index exceeds file count." << std::endl;
+        return false;
+    }
     std::vector<std::vector<char>> Buffers;
+    FILE_INDEX_ENTRY* file_index_table = (FILE_INDEX_ENTRY*)file_index_table_ptr;
+
     for (size_t i = 0; i < header.numFiles; i++)
     {
         for (size_t j = 0; j < header.numFilesWithGpu; j++)
         {
-            if (fileIndexTable[j].Index == Index) // Add 1 to match FILE_INDEX_ENTRY indexing
+            if (file_index_table[j].Index == Index) // Add 1 to match FILE_INDEX_ENTRY indexing
             {
-                switch (fileIndexTable[j].filePart)
+                switch (file_index_table[j].filePart)
                 {
                 case 1:     // .data
                     Buffers.resize(1);
-                    Buffers[0].resize(fileIndexTable[j].fileSize);
-                    memcpy(Buffers[0].data(), dataBuffers[0].data() + fileIndexTable[j].fileOffset, fileIndexTable[j].fileSize);
+                    Buffers[0].resize(file_index_table[j].fileSize);
+                    memcpy(Buffers[0].data(), dataBuffers[0].data() + file_index_table[j].fileOffset, file_index_table[j].fileSize);
                     break;
                 case 2:     // ,gpu
                     Buffers.resize(2);
-                    Buffers[1].resize(fileIndexTable[j].fileSize);
-                    memcpy(Buffers[1].data(), dataBuffers[1].data() + fileIndexTable[j].fileOffset, fileIndexTable[j].fileSize);
+                    Buffers[1].resize(file_index_table[j].fileSize);
+                    memcpy(Buffers[1].data(), dataBuffers[1].data() + file_index_table[j].fileOffset, file_index_table[j].fileSize);
                     break;
                 }
             }
@@ -319,6 +371,30 @@ bool FileHandler::writeFileFromIndex(u32 Index)
     return true;
 }
 
+bool FileHandler::writeListFile()
+{
+    std::string outFilename = input_file + ".listfile.csv";
+    std::ofstream outFile(outFilename);
+    if (!outFile)
+    {
+        std::cerr << "Error creating listfile: " << outFilename << std::endl;
+        return false;
+    }
+
+    outFile << "index,asset_type,data_offset,data_size,gpu_offset,gpu_size,c_filename, p_filename" << std::endl;
+    for (auto it = listFile.begin(); it != listFile.end(); ++it) {
+        outFile << it->first << ","
+            << it->second.assetType << ","
+            << it->second.dataOffset << ","
+            << it->second.dataSize << ","
+            << it->second.gpuOffset << ","
+            << it->second.gpuSize << ","
+            << it->second.cFileName << ","
+            << it->second.pFileName << std::endl;
+    }
+    return true;
+}
+
 void FileHandler::printHeaderInfo()
 {
     std::cout << "Magic: " << std::string(header.magic, 4) << std::endl;
@@ -336,10 +412,17 @@ void FileHandler::printFileInfos()
     }
 }
 
-void FileHandler::printFileNames()
+void FileHandler::printListFile()
 {
     std::cout << header.numFiles << " Files found: " << std::endl;
-    for (size_t i = 0; i < fileNameStrings.size(); ++i) {
-        std::cout << "  Index " << i + 1 << ": " << fileNameStrings[i] << std::endl;
+    for (auto it = listFile.begin(); it != listFile.end(); ++it) {
+        std::cout << "index: " << it->first
+            << ", type: " << it->second.assetType
+            << ", data_offset: " << it->second.dataOffset
+            << ", data_size: " << it->second.dataSize
+            << ", gpu_offset: " << it->second.gpuOffset
+            << ", gpu_size: " << it->second.gpuSize
+            << ", cfilename: " << it->second.cFileName
+            << ", pfilename: " << it->second.pFileName << std::endl;
     }
 }

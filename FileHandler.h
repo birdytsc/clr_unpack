@@ -6,6 +6,18 @@
 #include <cstring>
 #include <iomanip>
 #include <sstream>
+#include <map>
+
+struct LIST_FILE_ENTRY
+{
+    u32 dataOffset;
+    u32 dataSize;
+    u32 gpuOffset;
+    u32 gpuSize;
+    std::string assetType;
+    std::string cFileName;
+    std::string pFileName;
+};
 
 class FileHandler
 {
@@ -27,6 +39,16 @@ private:
     unsigned int fileNameBufferSize;
     std::vector<std::string> fileNameStrings;
     std::vector<FILE_INDEX_ENTRY> fileIndexTable;
+    std::map<int, LIST_FILE_ENTRY> listFile;
+    // internal pointers
+    u8* file_name_buffer_size_ptr;
+    u8* file_name_buffer_offsets_ptr;
+    u8* file_name_buffer_ptr;
+    u8* file_index_table_ptr;
+    u8* unused_table_1_ptr;
+    u8* unused_table_2_ptr;
+    u8* reloc_table_ptr;
+    u8* reloc_offsets_table_ptr;
 
 public:
     FileHandler(const std::string& inputFile);
@@ -35,13 +57,16 @@ public:
     bool verifyVersion();
     bool mapHeaderToStruct();
     bool mapFileInfosToStruct();
+    bool mapInternalPointers();
     bool mapFileNameStrings();
-    bool mapFileIndexTable();
+    bool mapZPackageFile();
+    bool mapZPackageFilenames();
+    bool mapFileAssets();
     bool decompressChunks();
     bool writeDecompressedFile();
-    bool writeListFile();
     bool writeFileFromIndex(u32 Index);
+    bool writeListFile();
     void printHeaderInfo();
     void printFileInfos();
-    void printFileNames();
+    void printListFile();
 };

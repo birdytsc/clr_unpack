@@ -13,22 +13,39 @@ int main(int argc, char* argv[])
         if (handler.loadFile())
         {
             handler.decompressChunks();
+            handler.mapInternalPointers();
             handler.mapFileNameStrings();
-            handler.mapFileIndexTable();
+            handler.mapZPackageFile();
+            handler.mapZPackageFilenames();
+            handler.mapFileAssets();
             handler.writeListFile();
         }
     }
-    else if (args.hasArg("d"))
+    else if (args.hasArg("x"))
     {
         // Dump file from Index if -d index
-        u32 Index = args.getIntArg("d");
+        u32 Index = args.getIntArg("x");
         FileHandler handler(args.getFirstArg());
         if (handler.loadFile())
         {
             handler.decompressChunks();
-            handler.mapFileNameStrings();
-            handler.mapFileIndexTable();
+            handler.mapInternalPointers();
             handler.writeFileFromIndex(Index);
+        }
+    }
+    else if (args.hasArg("t"))
+    {
+        // test
+        FileHandler handler(args.getFirstArg());
+        if (handler.loadFile())
+        {
+            handler.decompressChunks();
+            handler.mapInternalPointers();
+            handler.mapFileNameStrings();
+            handler.mapZPackageFile();
+            handler.mapZPackageFilenames();
+            handler.mapFileAssets();
+            handler.writeListFile();
         }
     }
     else
