@@ -16,9 +16,14 @@ Generate listfile:
 
     clr_unpack default.rbm -l
 
-dump files:
+dump individual files:
 
     clr_unpack default.rbm -x index
+
+dump mapped file:
+
+    clr_unpack default.rbm -d
+    clr_unpack default.rbm -d index
 
 You can also just drag and drop the file on the executable and it should unpack it into the same directory as the source file.
 

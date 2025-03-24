@@ -123,6 +123,34 @@ bool FileHandler::mapInternalPointers()
     return true;
  }
 
+bool FileHandler::mapFileIndexTable()
+{
+    if (file_index_table_ptr == nullptr)
+    {
+        std::cerr << "index table ptr was null" << std::endl;
+        return false;
+    }
+
+    FILE_INDEX_ENTRY* file_index_table = (FILE_INDEX_ENTRY*)file_index_table_ptr;
+
+    for (size_t i = 0; i < header.numFilesWithGpu; i++)
+    {
+        switch (file_index_table[i].filePart)
+        {
+        case 1:
+            // .data
+            file_index_table[i].fileOffset += header.dataOffset;
+            break;
+        case 2:
+            // .gpu
+            file_index_table[i].fileOffset += header.dataOffset + fileInfos[0].sizeDecompressed;
+            break;
+        }
+    }
+
+    return true;
+}
+
 bool FileHandler::mapFileNameStrings()
 {
     u32* bufferSize = (u32*)file_name_buffer_size_ptr;
@@ -167,7 +195,7 @@ bool FileHandler::mapZPackageFile()
         {
             if (*reloc_offset < (u32)source_size)
             {
-                u32* address_to_update = (u32*)(data + (u32)source_offset + *reloc_offset);
+                u32* address_to_update = (u32*)(data + (u32)source_offset + *reloc_offset - header.dataOffset);
                 *address_to_update += (u32)target_offset;
             }
         }
@@ -190,7 +218,7 @@ bool FileHandler::mapZPackageFilenames()
     for (size_t i = 0; i < *packageCount; i++)
     {
         PACKAGE_ENTRY* currentPackageEntry = (PACKAGE_ENTRY*)packageTablePtr + i;
-        std::string fileName = (char*)data + currentPackageEntry->fileNameOffset;
+        std::string fileName = (char*)data + (currentPackageEntry->fileNameOffset - header.dataOffset);
         for (size_t j = 0; j < header.numFilesWithGpu; j++)
         {
             if (currentPackageEntry->dataOffset >= file_index_table[j].fileOffset && currentPackageEntry->dataOffset <= (file_index_table[j].fileOffset + file_index_table[j].fileSize) && file_index_table[j].filePart == 1)
@@ -211,7 +239,7 @@ bool FileHandler::mapFileAssets()
         if (file_index_table[i].filePart == 1)
         {
             // .data
-            u8* assetTypePtr = (u8*)dataBuffers[0].data() + file_index_table[i].fileOffset;
+            u8* assetTypePtr = (u8*)dataBuffers[0].data() + file_index_table[i].fileOffset - header.dataOffset;
             std::string assetType = (char*)assetTypePtr;
             auto it = std::find(assetTypes.begin(), assetTypes.end(), assetType);
             if (it != assetTypes.end())
@@ -255,9 +283,20 @@ bool FileHandler::decompressChunks()
     return true;
 }
 
-bool FileHandler::writeDecompressedFile()
+bool FileHandler::writeDecompressedFile(bool mapped)
 {
-    std::string outFilename = input_file + ".unpacked";
+
+    std::ostringstream s;
+    std::string outFilename;
+
+    s.str("");
+    s << input_file << ".unpacked";
+    if (mapped)
+    {
+        s << ".mapped";
+    }
+    outFilename = s.str();
+
     std::ofstream outFile(outFilename, std::ios::binary);
     if (!outFile) {
         std::cerr << "Error creating output file: " << outFilename << std::endl;
@@ -299,7 +338,7 @@ bool FileHandler::writeDecompressedFile()
     return true;
 }
 
-bool FileHandler::writeFileFromIndex(u32 Index)
+bool FileHandler::writeFileFromIndex(u32 Index, bool mapped)
 {
     if (Index > header.numFiles)
     {
@@ -320,12 +359,26 @@ bool FileHandler::writeFileFromIndex(u32 Index)
                 case 1:     // .data
                     Buffers.resize(1);
                     Buffers[0].resize(file_index_table[j].fileSize);
-                    memcpy(Buffers[0].data(), dataBuffers[0].data() + file_index_table[j].fileOffset, file_index_table[j].fileSize);
+                    if (mapped)
+                    {
+                        memcpy(Buffers[0].data(), dataBuffers[0].data() + file_index_table[j].fileOffset - header.dataOffset, file_index_table[j].fileSize);
+                    }
+                    else
+                    {
+                        memcpy(Buffers[0].data(), dataBuffers[0].data() + file_index_table[j].fileOffset, file_index_table[j].fileSize);
+                    }
                     break;
                 case 2:     // ,gpu
                     Buffers.resize(2);
                     Buffers[1].resize(file_index_table[j].fileSize);
-                    memcpy(Buffers[1].data(), dataBuffers[1].data() + file_index_table[j].fileOffset, file_index_table[j].fileSize);
+                    if (mapped)
+                    {
+                        memcpy(Buffers[1].data(), dataBuffers[1].data() + file_index_table[j].fileOffset - header.dataOffset - fileInfos[0].sizeDecompressed, file_index_table[j].fileSize);
+                    }
+                    else
+                    {
+                        memcpy(Buffers[1].data(), dataBuffers[1].data() + file_index_table[j].fileOffset, file_index_table[j].fileSize);
+                    }
                     break;
                 }
             }
@@ -343,6 +396,10 @@ bool FileHandler::writeFileFromIndex(u32 Index)
         case 0:
             s.str("");
             s << Index << ".data";
+            if (mapped)
+            {
+                s << ".mapped";
+            }
             outFilename = s.str();
             outFile.open(outFilename, std::ios::binary);
             if (!outFile)
@@ -356,6 +413,10 @@ bool FileHandler::writeFileFromIndex(u32 Index)
         case 1:
             s.str("");
             s << Index << ".gpu";
+            if (mapped)
+            {
+                s << ".mapped";
+            }
             outFilename = s.str();
             outFile.open(outFilename, std::ios::binary);
             if (!outFile)

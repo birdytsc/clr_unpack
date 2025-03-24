@@ -58,13 +58,14 @@ public:
     bool mapHeaderToStruct();
     bool mapFileInfosToStruct();
     bool mapInternalPointers();
+    bool mapFileIndexTable();
     bool mapFileNameStrings();
     bool mapZPackageFile();
     bool mapZPackageFilenames();
     bool mapFileAssets();
     bool decompressChunks();
-    bool writeDecompressedFile();
-    bool writeFileFromIndex(u32 Index);
+    bool writeDecompressedFile(bool mapped);
+    bool writeFileFromIndex(u32 Index, bool mapped);
     bool writeListFile();
     void printHeaderInfo();
     void printFileInfos();

@@ -14,6 +14,7 @@ int main(int argc, char* argv[])
         {
             handler.decompressChunks();
             handler.mapInternalPointers();
+            handler.mapFileIndexTable();
             handler.mapFileNameStrings();
             handler.mapZPackageFile();
             handler.mapZPackageFilenames();
@@ -30,7 +31,28 @@ int main(int argc, char* argv[])
         {
             handler.decompressChunks();
             handler.mapInternalPointers();
-            handler.writeFileFromIndex(Index);
+            handler.writeFileFromIndex(Index, false);
+        }
+    }
+    else if (args.hasArg("d"))
+    {
+        // Dump file from Index if -d index
+        u32 Index = args.getIntArg("d");
+        FileHandler handler(args.getFirstArg());
+        if (handler.loadFile())
+        {
+            handler.decompressChunks();
+            handler.mapInternalPointers();
+            handler.mapFileIndexTable();
+            handler.mapZPackageFile();
+            if (Index)
+            {
+                handler.writeFileFromIndex(Index, true);
+            }
+            else
+            {
+                handler.writeDecompressedFile(true);
+            }
         }
     }
     else if (args.hasArg("t"))
@@ -41,11 +63,12 @@ int main(int argc, char* argv[])
         {
             handler.decompressChunks();
             handler.mapInternalPointers();
-            handler.mapFileNameStrings();
+            handler.mapFileIndexTable();
             handler.mapZPackageFile();
-            handler.mapZPackageFilenames();
-            handler.mapFileAssets();
-            handler.writeListFile();
+            handler.writeDecompressedFile(true);
+            handler.writeFileFromIndex(1, true);
+            handler.writeFileFromIndex(2, true);
+            handler.writeFileFromIndex(3, true);
         }
     }
     else
@@ -57,7 +80,7 @@ int main(int argc, char* argv[])
             handler.decompressChunks();
             handler.printHeaderInfo();
             handler.printFileInfos();
-            handler.writeDecompressedFile();
+            handler.writeDecompressedFile(false);
         }
     }
 
